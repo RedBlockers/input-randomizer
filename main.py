@@ -1,123 +1,47 @@
+import time
+
+import keyboard
 from pynput.mouse import Listener
 import random
-import ctypes
-from ctypes import wintypes
-import time
-import asyncio
 
-user32 = ctypes.WinDLL('user32', use_last_error=True)
-
-INPUT_MOUSE = 0
-INPUT_KEYBOARD = 1
-INPUT_HARDWARE = 2
-
-KEYEVENTF_EXTENDEDKEY = 0x0001
-KEYEVENTF_KEYUP = 0x0002
-KEYEVENTF_UNICODE = 0x0004
-KEYEVENTF_SCANCODE = 0x0008
-
-MAPVK_VK_TO_VSC = 0
-
-# msdn.microsoft.com/en-us/library/dd375731
-VK_TAB = 0x09
-VK_MENU = 0x12
-
-# C struct definitions
-
-wintypes.ULONG_PTR = wintypes.WPARAM
-
-
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = (("dx", wintypes.LONG),
-                ("dy", wintypes.LONG),
-                ("mouseData", wintypes.DWORD),
-                ("dwFlags", wintypes.DWORD),
-                ("time", wintypes.DWORD),
-                ("dwExtraInfo", wintypes.ULONG_PTR))
-
-
-class KEYBDINPUT(ctypes.Structure):
-    _fields_ = (("wVk", wintypes.WORD),
-                ("wScan", wintypes.WORD),
-                ("dwFlags", wintypes.DWORD),
-                ("time", wintypes.DWORD),
-                ("dwExtraInfo", wintypes.ULONG_PTR))
-
-    def __init__(self, *args, **kwds):
-        super(KEYBDINPUT, self).__init__(*args, **kwds)
-        # some programs use the scan code even if KEYEVENTF_SCANCODE
-        # isn't set in dwFflags, so attempt to map the correct code.
-        if not self.dwFlags & KEYEVENTF_UNICODE:
-            self.wScan = user32.MapVirtualKeyExW(self.wVk,
-                                                 MAPVK_VK_TO_VSC, 0)
-
-
-class HARDWAREINPUT(ctypes.Structure):
-    _fields_ = (("uMsg", wintypes.DWORD),
-                ("wParamL", wintypes.WORD),
-                ("wParamH", wintypes.WORD))
-
-
-class INPUT(ctypes.Structure):
-    class _INPUT(ctypes.Union):
-        _fields_ = (("ki", KEYBDINPUT),
-                    ("mi", MOUSEINPUT),
-                    ("hi", HARDWAREINPUT))
-
-    _anonymous_ = ("_input",)
-    _fields_ = (("type", wintypes.DWORD),
-                ("_input", _INPUT))
-
-
-LPINPUT = ctypes.POINTER(INPUT)
-
-
-def _check_count(result, func, args):
-    if result == 0:
-        raise ctypes.WinError(ctypes.get_last_error())
-    return args
-
-
-user32.SendInput.errcheck = _check_count
-user32.SendInput.argtypes = (wintypes.UINT,  # nInputs
-                             LPINPUT,  # pInputs
-                             ctypes.c_int)  # cbSize
-
-
-# Functions
-
-def PressKey(hexKeyCode):
-    x = INPUT(type=INPUT_KEYBOARD,
-              ki=KEYBDINPUT(wVk=hexKeyCode))
-    user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
-
-
-def ReleaseKey(hexKeyCode):
-    x = INPUT(type=INPUT_KEYBOARD,
-              ki=KEYBDINPUT(wVk=hexKeyCode,
-                            dwFlags=KEYEVENTF_KEYUP))
-    user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
-
+def choisir_action(actions):
+    total_proba = sum(action['proba'] for action in actions)
+    rand_num = random.randint(1, total_proba)
+    proba_cumulative = 0
+    for action in actions:
+        proba_cumulative += action['proba']
+        if rand_num <= proba_cumulative:
+            return action
 
 def on_click(x, y, button, pressed):
-    print(x, y, str(button), pressed)
-    if pressed and str(button) == "Button.right":
-        x = random.randint(1, 5)
-        if x == 1:
-            x = 0x31
-        elif x == 2:
-            x = 0x32
-        elif x == 3:
-            x = 0x33
-        elif x == 4:
-            x = 0x34
-        elif x == 5:
-            x = 0x35
-        print(x)
-        PressKey(x)
-        time.sleep(0.1)
+    if mode == '2':
+        if pressed and str(button) == "Button.middle":
+            for char in text:
+                if char == '\\':
+                    keyboard.press_and_release('enter')
+                else:
+                    keyboard.write(char)
+                if char == ' ':
+                    time.sleep(.5)
+    elif mode == '1':
+            if pressed and str(button) == "Button.right":
+                action = choisir_action(actions)
+                keyboard.press_and_release(action['touche'])
+                print(f"pressed {action['touche']}")
 
+
+
+mode = input('quel mode voulez-vous\n1-Random picker\n2-Text Writer')
+text = input("Enter the text to type: ")
+
+actions = []
+active = True
+while active:
+    _input = input('touche,proba : exemple :&,30')
+    if _input != ' ':
+        actions.append({'touche': _input.split(',')[0], 'proba': float(_input.split(',')[1])})
+    else:
+        active = False
 
 with Listener(on_click=on_click) as listener:
     listener.join()
-
